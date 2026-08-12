@@ -130,6 +130,43 @@ const opticalDue = filteredPatients.reduce((sum, p) => {
 
 const recentAppointments = cleanedPatients.slice(0, 5);
 
+  // --- Daily Collection computation ---
+  const dailyCollectionMap: Record<string, number> = {};
+
+  patients.forEach((p) => {
+    // Visit details
+    if (Array.isArray(p.visitDetails)) {
+      p.visitDetails.forEach((v: { visitDate?: string; visitPrice?: number | string }) => {
+        const d = normalizeYYYYMMDD(v.visitDate);
+        if (!d) return;
+        if (!isInRange(v.visitDate, startDate, endDate)) return;
+        dailyCollectionMap[d] = (dailyCollectionMap[d] || 0) + (Number(v.visitPrice) || 0);
+      });
+    }
+    // Medicines
+    if (Array.isArray(p.medicines)) {
+      p.medicines.forEach((m: { date?: string; price?: number | string }) => {
+        const d = normalizeYYYYMMDD(m.date);
+        if (!d) return;
+        if (!isInRange(m.date, startDate, endDate)) return;
+        dailyCollectionMap[d] = (dailyCollectionMap[d] || 0) + (Number(m.price) || 0);
+      });
+    }
+    // Optical payments
+    if (Array.isArray(p.opticalPayDetails)) {
+      p.opticalPayDetails.forEach((op: { date?: string; amount?: number | string }) => {
+        const d = normalizeYYYYMMDD(op.date);
+        if (!d) return;
+        if (!isInRange(op.date, startDate, endDate)) return;
+        dailyCollectionMap[d] = (dailyCollectionMap[d] || 0) + (Number(op.amount) || 0);
+      });
+    }
+  });
+
+  const dailyCollectionRows = Object.entries(dailyCollectionMap)
+    .sort(([a], [b]) => b.localeCompare(a)) // newest first
+    .map(([date, total], idx) => ({ serial: idx + 1, date, total }));
+
 
   return (
     <div>
@@ -390,6 +427,66 @@ const recentAppointments = cleanedPatients.slice(0, 5);
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Daily Collection Table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 md:px-6 py-4 border-b border-gray-200 flex items-center gap-2">
+          <CalendarIcon className="h-5 w-5 text-teal-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Daily Collection</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
+                  S.No
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Total Daily Collection
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {dailyCollectionRows.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-6 text-center text-gray-400 text-sm">
+                    No collection data found for the selected period.
+                  </td>
+                </tr>
+              ) : (
+                dailyCollectionRows.map((row) => (
+                  <tr key={row.date} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-500 font-medium">{row.serial}</td>
+                    <td className="px-4 py-3 text-gray-800 font-medium">
+                      {new Date(row.date).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-semibold text-green-700">₹{row.total.toLocaleString("en-IN")}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {dailyCollectionRows.length > 0 && (
+              <tfoot>
+                <tr className="bg-green-50 border-t-2 border-green-200">
+                  <td colSpan={2} className="px-4 py-3 font-bold text-gray-700">Grand Total</td>
+                  <td className="px-4 py-3 text-right font-bold text-green-800">
+                    ₹{dailyCollectionRows.reduce((s, r) => s + r.total, 0).toLocaleString("en-IN")}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </div>
       </div>
     </div>
